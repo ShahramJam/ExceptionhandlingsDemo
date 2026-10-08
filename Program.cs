@@ -1,4 +1,7 @@
-﻿namespace ExceptionsDemo
+﻿using System;
+using System.IO;
+
+namespace ExceptionsDemo
 {
     internal class Program
     {
