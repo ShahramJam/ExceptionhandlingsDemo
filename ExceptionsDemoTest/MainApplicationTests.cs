@@ -1,111 +1,112 @@
 ﻿using System;
-using System.IO;
-using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using ExceptionsDemo;
 
-namespace ExceptionsDemoTest
+namespace ExceptionsDemo.Tests
 {
-    
-    class SuccessfulFileProcessor : IFileProcessorService
+    // Simple test logger that records messages and levels for assertions
+    internal class TestLogger<T> : ILogger<T>
     {
-        private readonly double _result;
-        public SuccessfulFileProcessor(double result) => _result = result;
-        public double ProcessFile(string fileName) => _result;
+        public List<(LogLevel Level, string Message)> Logs { get; } = new();
+
+        public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            if (exception != null)
+                message += $" Exception: {exception.Message}";
+            Logs.Add((logLevel, message));
+        }
+
+        private class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 
-    class ThrowingFileProcessor : IFileProcessorService
+    // Delegating fake service to control behavior in tests
+    internal class DelegatingFileProcessorService : IFileProcessorService
     {
-        private readonly Exception _ex;
-        public ThrowingFileProcessor(Exception ex) => _ex = ex;
-        public double ProcessFile(string fileName) => throw _ex;
+        private readonly Func<string, double> _func;
+        public DelegatingFileProcessorService(Func<string, double> func) => _func = func;
+        public double ProcessFile(string fileName) => _func(fileName);
     }
 
     public class MainApplicationTests
     {
-        private static string CaptureConsoleOutput(Action action)
+        [Fact]
+        public void Run_LogsResult_WhenProcessingSucceeds()
         {
-            var originalOut = Console.Out;
-            try
-            {
-                using var sw = new StringWriter();
-                Console.SetOut(sw);
-                action();
-                Console.Out.Flush();
-                return sw.ToString();
-            }
-            finally
-            {
-                Console.SetOut(originalOut);
-            }
+            var logger = new TestLogger<MainApplication>();
+            var service = new DelegatingFileProcessorService(_ => 25.0); // returned result will be logged
+            var app = new MainApplication(service, logger);
+
+            app.Run();
+
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Information && l.Message.Contains("Resultat: 25"));
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Information && l.Message.Contains("Rensning: loggning avslutad."));
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Information && l.Message.Contains("Programmet avslutas normalt."));
         }
 
         [Fact]
-        public void Run_WhenProcessFileSucceeds_PrintsResultAndNormalFlowMessages()
+        public void Run_LogsFileNotFound_WhenServiceThrowsFileNotFoundException()
         {
-            var service = new SuccessfulFileProcessor(25.0);
-            var logger = NullLogger<MainApplication>.Instance;
+            var logger = new TestLogger<MainApplication>();
+            var service = new DelegatingFileProcessorService(_ => throw new System.IO.FileNotFoundException("numbers.txt not found"));
             var app = new MainApplication(service, logger);
 
-            var output = CaptureConsoleOutput(() => app.Run());
+            app.Run();
 
-            Assert.Contains("=== Start av programmet ===", output);
-            Assert.Contains("Försöker läsa fil och räkna...", output);
-            Assert.Contains("Resultat: 25", output); // formatted without decimals may appear as "25" or "25,0"; check major substring
-            Assert.Contains("Rensning: loggning avslutad.", output);
-            Assert.Contains("Programmet avslutas normalt.", output);
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Error && l.Message.Contains("Filen hittades inte:") && l.Message.Contains("numbers.txt not found"));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Rensning: loggning avslutad."));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Programmet avslutas normalt."));
         }
 
         [Fact]
-        public void Run_WhenFileNotFound_PrintsFileNotFoundMessage()
+        public void Run_LogsFormatError_WhenServiceThrowsFormatException()
         {
-            var service = new ThrowingFileProcessor(new FileNotFoundException("numbers.txt saknas"));
-            var logger = NullLogger<MainApplication>.Instance;
+            var logger = new TestLogger<MainApplication>();
+            var service = new DelegatingFileProcessorService(_ => throw new FormatException("Invalid number format"));
             var app = new MainApplication(service, logger);
 
-            var output = CaptureConsoleOutput(() => app.Run());
+            app.Run();
 
-            Assert.Contains("Filen hittades inte", output);
-            Assert.Contains("Rensning: loggning avslutad.", output);
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Error && l.Message.Contains("Formatfel:") && l.Message.Contains("Invalid number format"));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Rensning: loggning avslutad."));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Programmet avslutas normalt."));
         }
 
         [Fact]
-        public void Run_WhenFormatException_PrintsFormatErrorMessage()
+        public void Run_LogsDivideByZero_WhenServiceThrowsDivideByZeroException()
         {
-            var service = new ThrowingFileProcessor(new FormatException("ogiltigt tal"));
-            var logger = NullLogger<MainApplication>.Instance;
+            var logger = new TestLogger<MainApplication>();
+            var service = new DelegatingFileProcessorService(_ => throw new DivideByZeroException("Division by zero in file"));
             var app = new MainApplication(service, logger);
 
-            var output = CaptureConsoleOutput(() => app.Run());
+            app.Run();
 
-            Assert.Contains("Formatfel", output);
-            Assert.Contains("Rensning: loggning avslutad.", output);
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Error && l.Message.Contains("Kan inte dividera med noll:") && l.Message.Contains("Division by zero in file"));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Rensning: loggning avslutad."));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Programmet avslutas normalt."));
         }
 
         [Fact]
-        public void Run_WhenDivideByZero_PrintsDivideByZeroMessage()
+        public void Run_LogsUnknownError_WhenServiceThrowsGenericException()
         {
-            var service = new ThrowingFileProcessor(new DivideByZeroException("division med noll"));
-            var logger = NullLogger<MainApplication>.Instance;
+            var logger = new TestLogger<MainApplication>();
+            var service = new DelegatingFileProcessorService(_ => throw new Exception("Something went wrong"));
             var app = new MainApplication(service, logger);
 
-            var output = CaptureConsoleOutput(() => app.Run());
+            app.Run();
 
-            Assert.Contains("Kan inte dividera med noll", output);
-            Assert.Contains("Rensning: loggning avslutad.", output);
-        }
-
-        [Fact]
-        public void Run_WhenGenericException_PrintsUnknownErrorMessage()
-        {
-            var service = new ThrowingFileProcessor(new Exception("något gick fel"));
-            var logger = NullLogger<MainApplication>.Instance;
-            var app = new MainApplication(service, logger);
-
-            var output = CaptureConsoleOutput(() => app.Run());
-
-            Assert.Contains("Okänt fel", output);
-            Assert.Contains("Rensning: loggning avslutad.", output);
+            Assert.Contains(logger.Logs, l => l.Level == LogLevel.Error && l.Message.Contains("Okänt fel:") && l.Message.Contains("Something went wrong"));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Rensning: loggning avslutad."));
+            Assert.Contains(logger.Logs, l => l.Message.Contains("Programmet avslutas normalt."));
         }
     }
 }

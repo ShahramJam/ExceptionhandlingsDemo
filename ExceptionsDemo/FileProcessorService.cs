@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 
@@ -8,8 +9,9 @@ namespace ExceptionsDemo
         double ProcessFile(string fileName);
     }
 
-    public class FileProcessorService : IFileProcessorService
+    public class FileProcessorService(ILogger<FileProcessorService> logger) : IFileProcessorService
     {
+
         // Exempel på metod som själv kastar ett undantag (throw)
         public double ProcessFile(string fileName)
         {
@@ -36,37 +38,37 @@ namespace ExceptionsDemo
             }
             catch (ArgumentException ex)
             {
-                Console.WriteLine($"Argumentfel i ProcessFile: {ex.Message}");
+                logger.LogError($"Argumentfel i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (FileNotFoundException ex)
             {
-                Console.WriteLine($"Filen hittades inte i ProcessFile: {ex.Message}");
+                logger.LogError($"Filen hittades inte i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (FormatException ex)
             {
-                Console.WriteLine($"Formatfel i ProcessFile: {ex.Message}");
+                logger.LogError($"Formatfel i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (DivideByZeroException ex)
             {
-                Console.WriteLine($"Nolldivision i ProcessFile: {ex.Message}");
+                logger.LogError($"Nolldivision i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (InvalidOperationException ex)
             {
-                Console.WriteLine($"Ogiltigt tillstånd i ProcessFile: {ex.Message}");
+                logger.LogError($"Ogiltigt tillstånd i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (IOException ex)
             {
-                Console.WriteLine($"IO-fel i ProcessFile: {ex.Message}");
+                logger.LogError($"IO-fel i ProcessFile: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Okänt fel i ProcessFile: {ex.Message}");
+                logger.LogError($"Okänt fel i ProcessFile: {ex.Message}");
                 throw;
             }
         }

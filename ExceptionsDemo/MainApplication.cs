@@ -10,43 +10,40 @@ namespace ExceptionsDemo
         // Kör programmets logik
         public void Run()
         {
-            logger.LogInformation("Konsolapplikationen har startat.");
-
-            Console.WriteLine("=== Start av programmet ===");
+            logger.LogInformation("=== Start av programmet ===");
 
             try
             {
-                Console.WriteLine("Försöker läsa fil och räkna...");
+                logger.LogInformation("Försöker läsa fil och räkna...");
                 var path = Path.Combine(AppContext.BaseDirectory, "numbers.txt");
                 var result = fileProcessorService.ProcessFile(path);
 
-                Console.WriteLine($"\nResultat: {result}");
+                logger.LogInformation($"\nResultat: {result}");
             }
             catch (FileNotFoundException ex)
             {
-                Console.WriteLine($"Filen hittades inte: {ex.Message}");
+                logger.LogError($"Filen hittades inte: {ex.Message}");
             }
             catch (FormatException ex)
             {
-                Console.WriteLine($"Formatfel: {ex.Message}");
+                logger.LogError($"Formatfel: {ex.Message}");
             }
             catch (DivideByZeroException ex)
             {
-                Console.WriteLine($"Kan inte dividera med noll: {ex.Message}");
+                logger.LogError($"Kan inte dividera med noll: {ex.Message}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Okänt fel: {ex.Message}");
+                logger.LogError($"Okänt fel: {ex.Message}");
             }
             finally
             {
                 // Rensning som alltid körs, även vid undantag
-                Console.WriteLine("Rensning: loggning avslutad.");
+                logger.LogInformation("Rensning: loggning avslutad.");
             }
 
-            Console.WriteLine("Programmet avslutas normalt.");
+            logger.LogInformation("Programmet avslutas normalt.");
 
-            logger.LogInformation("Konsolapplikationen avslutade framgångsrikt.");
         }
     }
 }
