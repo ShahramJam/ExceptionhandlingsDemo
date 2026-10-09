@@ -3,53 +3,71 @@ using System.IO;
 
 namespace ExceptionsDemo
 {
-    internal static class FileProcessor
+    public interface IFileProcessorService
+    {
+        double ProcessFile(string fileName);
+    }
+
+    public class FileProcessorService : IFileProcessorService
     {
         // Exempel på metod som själv kastar ett undantag (throw)
-        public static double ProcessFile(string fileName)
+        public double ProcessFile(string fileName)
         {
-            // Om filnamnet är tomt: logiskt fel vi vill signalera
-            if (string.IsNullOrWhiteSpace(fileName))
-            {
-                throw new ArgumentException("Filnamn får inte vara tomt eller null.", nameof(fileName));
-            }
-
-            StreamReader? reader = null;
             try
             {
-                reader = new StreamReader(fileName);
+                if (string.IsNullOrWhiteSpace(fileName))
+                    throw new ArgumentException("Filnamn får inte vara tomt eller null.", nameof(fileName));
+
+                // Let StreamReader throw FileNotFoundException if the file is missing
+                using var reader = new StreamReader(fileName);
 
                 string? line = reader.ReadLine();
-                if (line == null)
-                    throw new InvalidOperationException("Filen är tom.");
+                if (string.IsNullOrWhiteSpace(line))
+                    throw new InvalidOperationException("Filen är tom eller innehåller inga giltiga rader.");
 
-                // Försöker omvandla text till tal
-                int number = int.Parse(line); // Kan ge FormatException
+                line = line.Trim();
+                if (!int.TryParse(line, out int number))
+                    throw new FormatException($"Kan inte tolka '{line}' som ett heltal.");
 
-                // Division: kan ge DivideByZeroException
+                if (number == 0)
+                    throw new DivideByZeroException("Det första talet i filen är noll, division med noll.");
+
                 return 100.0 / number;
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"Argumentfel i ProcessFile: {ex.Message}");
+                throw;
+            }
+            catch (FileNotFoundException ex)
+            {
+                Console.WriteLine($"Filen hittades inte i ProcessFile: {ex.Message}");
+                throw;
             }
             catch (FormatException ex)
             {
-                // Vi kan logga eller omformulera felet
                 Console.WriteLine($"Formatfel i ProcessFile: {ex.Message}");
-                // Vi kan välja att låta metoden "kasta upp" felet
-                throw; // När du i `catch` bara vill logga/analysera,
-                       // men låta anroparen (t.ex. en högre nivå i applikationen)
-                       // bestämma hur man ska återhämta sig. 
+                throw;
+            }
+            catch (DivideByZeroException ex)
+            {
+                Console.WriteLine($"Nolldivision i ProcessFile: {ex.Message}");
+                throw;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"Ogiltigt tillstånd i ProcessFile: {ex.Message}");
+                throw;
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"IO-fel i ProcessFile: {ex.Message}");
+                throw;
             }
             catch (Exception ex)
             {
-                // Om vi vill ge en mer meningsfull feltyp till anroparen
-                throw new InvalidOperationException(
-                "Det gick inte att processa filen.",
-                ex); // InnerException = ursprunglig fel
-            }
-            finally
-            {
-                // Garanterad stängning av resurs
-                reader?.Close();
-                Console.WriteLine("finally i ProcessFile: StreamReader stängd.");
+                Console.WriteLine($"Okänt fel i ProcessFile: {ex.Message}");
+                throw;
             }
         }
     }
