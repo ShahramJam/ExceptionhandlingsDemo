@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+
 
 namespace ExceptionsDemo
 {
@@ -7,19 +10,25 @@ namespace ExceptionsDemo
     {
         static void Main(string[] args)
         {
-            // 1. Skapa och konfigurera host-applikationsbyggaren
+            // Skapa och konfigurera host-applikationsbyggaren
             HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
-            // 2. Registrera egna tjänster i DI-containern
+            // register custom formatter and select it
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole(options => options.FormatterName = "MinimalistText")
+                .AddConsoleFormatter<MinimalistTextFormatter, ConsoleFormatterOptions>();
+
+            //  Registrera egna tjänster i DI-containern
             builder.Services.AddSingleton<IFileProcessorService, FileProcessorService>();
             builder.Services.AddTransient<MainApplication>();
 
-            // 3. Bygg host-containern
+            // Bygg host-containern
             using IHost host = builder.Build();
 
-            // 4. Hämta instansen av startklassen
+            // Hämta instansen av startklassen
             var app = host.Services.GetRequiredService<MainApplication>();
             app.Run();
         }
     }
 }
+
