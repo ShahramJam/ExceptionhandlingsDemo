@@ -6,7 +6,7 @@ using ExceptionsDemo;
 
 namespace ExceptionsDemoTest
 {
-    // Simple test doubles for IFileProcessorService to avoid external mocking libraries.
+    
     class SuccessfulFileProcessor : IFileProcessorService
     {
         private readonly double _result;
